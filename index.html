@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Arizona Drought Propagation Explorer</title>
+<link rel="stylesheet" href="css/style.css" />
+<script src="vendor/plotly.min.js"></script>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <h1>Arizona Drought Propagation Explorer</h1>
+    <p class="sub">Spatiotemporal patterns and explanatory factors of soil moisture and runoff anomalies</p>
+  </div>
+  <div class="genstamp" id="genstamp"></div>
+</header>
+
+<nav class="tabs" id="tabs">
+  <button class="tab active" data-tab="indices">Drought indices</button>
+  <button class="tab" data-tab="static">Static variables</button>
+  <button class="tab" data-tab="modobs">Modeled vs observed</button>
+  <button class="tab" data-tab="pfi">Ranked Feature Importance</button>
+  <button class="tab" data-tab="pfimap">Feature Importance Maps</button>
+</nav>
+
+<main>
+  <!-- ============ INDICES ============ -->
+  <section id="indices" class="panel active">
+    <div class="controls">
+      <label>Left map
+        <select id="idx-select-a">
+          <option value="spi">SPI &mdash; precipitation</option>
+          <option value="spei">SPEI &mdash; precip. &minus; PET</option>
+          <option value="ssmi" selected>SSMI &mdash; soil moisture</option>
+          <option value="sri">SRI &mdash; streamflow</option>
+        </select>
+      </label>
+      <label>Right map
+        <select id="idx-select-b">
+          <option value="spi">SPI &mdash; precipitation</option>
+          <option value="spei">SPEI &mdash; precip. &minus; PET</option>
+          <option value="ssmi">SSMI &mdash; soil moisture</option>
+          <option value="sri" selected>SRI &mdash; streamflow</option>
+        </select>
+      </label>
+      <div class="slider-wrap">
+        <label>Date <span id="idx-datelbl" class="datelbl"></span></label>
+        <div class="slider-row">
+          <button id="idx-play" class="playbtn" title="Play / pause">&#9654;</button>
+          <input type="range" id="idx-slider" min="0" value="563" />
+        </div>
+      </div>
+    </div>
+    <div class="grid2">
+      <div id="idx-map-a" class="plot maphalf"></div>
+      <div id="idx-map-b" class="plot maphalf"></div>
+    </div>
+    <p class="note">Negative values indicate drier-than-normal conditions; positive values wetter. Color scale fixed to &plusmn;3 for comparability across dates and indices. Cells outside the modeling domain are blank.</p>
+    <p class="note">Standardized Precipitation Index (SPI), Standardized Precipitation Evapotranspiration Index (SPEI), Standardized Soil Moisture Index (SSMI) and Standardized Runoff Index (SRI) all computed with a one month window.</p>
+  </section>
+
+  <!-- ============ STATIC ============ -->
+  <section id="static" class="panel">
+    <div class="controls">
+      <label>Variable
+        <select id="stat-select"></select>
+      </label>
+    </div>
+    <div id="stat-map" class="plot"></div>
+    <p class="note" id="stat-note">Static physiographic / climatological predictors, constant in time.</p>
+  </section>
+
+  <!-- ============ MODELED vs OBSERVED ============ -->
+  <section id="modobs" class="panel">
+    <div class="controls">
+      <label>Model
+        <select id="mo-select">
+          <option value="ssmi">SSMI model</option>
+          <option value="sri">SRI model</option>
+        </select>
+      </label>
+      <div id="mo-metrics" class="metrics"></div>
+    </div>
+    <div class="grid2">
+      <div id="mo-scatter" class="plot half"></div>
+      <div id="mo-ts" class="plot half"></div>
+    </div>
+    <div class="slider-wrap">
+      <label>Test month <span id="mo-datelbl" class="datelbl"></span></label>
+      <div class="slider-row">
+        <button id="mo-play" class="playbtn" title="Play / pause">&#9654;</button>
+        <input type="range" id="mo-slider" min="0" value="0" />
+      </div>
+    </div>
+    <div class="grid3">
+      <div id="mo-obs" class="plot third"></div>
+      <div id="mo-pred" class="plot third"></div>
+      <div id="mo-err" class="plot third"></div>
+    </div>
+    <p class="note">Scatter and metrics use every cell &times; month in the held-out test period; values shown in physical index units (inverse-transformed from the model's scaled target).</p>
+    <div class="modelbox">
+      <h3>Model architecture</h3>
+      <div class="modelfig">
+        <img src="img/model_architecture.svg" alt="CNN-ConvLSTM model architecture: dynamic variables and static attributes are processed in parallel by a ConvLSTM and a CNN, concatenated, and used to predict and evaluate results." />
+      </div>
+      <p class="modeltext">The model architecture used to simulate SSMI and SRI is a CNN-ConvLSTM. This architecture combines a Convolutional-Long Short Term Memory model that excels simulating spatiotemporal patterns but that does not efficiently integrated static factors with a Convolutional Neural Network which is well suited to assessing the role of static spatially variable factors.</p>
+    </div>
+  </section>
+
+  <!-- ============ FEATURE IMPORTANCE ============ -->
+  <section id="pfi" class="panel">
+    <div class="controls">
+      <label>Model
+        <select id="pfi-select">
+          <option value="ssmi">SSMI model</option>
+          <option value="sri">SRI model</option>
+        </select>
+      </label>
+      <label>Show
+        <select id="pfi-group">
+          <option value="all">All features</option>
+          <option value="dynamic">Dynamic indices only</option>
+          <option value="static">Static only</option>
+        </select>
+      </label>
+      <label class="chk"><input type="checkbox" id="pfi-top" /> Top 5 only</label>
+    </div>
+    <div id="pfi-bar" class="plot tall"></div>
+    <p class="note">Permutation feature importance = increase in test RMSE when a feature is shuffled (mean &plusmn; std over repeats). Larger = more important. Colored by feature group. Dynamic drought indices are shown as their overall contribution; individual monthly lags are omitted.</p>
+  </section>
+
+  <!-- ============ PFI MAPS ============ -->
+  <section id="pfimap" class="panel">
+    <div class="controls">
+      <label>Model
+        <select id="pm-select">
+          <option value="ssmi">SSMI model</option>
+          <option value="sri">SRI model</option>
+        </select>
+      </label>
+      <label>Feature
+        <select id="pm-feature"></select>
+      </label>
+    </div>
+    <div id="pm-map" class="plot"></div>
+    <p class="note">Spatial permutation importance: local increase in error (&Delta;RMSE) when the selected feature is shuffled. Highlights where each predictor matters most.</p>
+  </section>
+</main>
+
+<footer>
+  <span id="footinfo"></span>
+</footer>
+
+<script src="js/app.js"></script>
+</body>
+</html>
